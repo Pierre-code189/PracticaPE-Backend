@@ -11,6 +11,7 @@ from ..core.config import settings
 from ..core.database import get_db
 from ..core.security import dec_email
 from .deps import get_current_user, require_role
+from .jobs import job_out
 
 router = APIRouter(tags=["profiles"])
 
@@ -325,6 +326,15 @@ async def upload_logo(file: UploadFile, db: Session = Depends(get_db), user=Depe
     c.logo_url = _save_upload(file, "logo", user.id)
     db.commit()
     return {"logo_url": c.logo_url}
+
+
+@router.get("/business/jobs")
+def business_jobs(db: Session = Depends(get_db), user=Depends(require_role("business", "admin"))):
+    """Todas las convocatorias de la empresa (borradores, publicadas y cerradas)."""
+    if not user.company:
+        return []
+    rows = db.query(models.Job).filter_by(company_id=user.company.id).order_by(models.Job.id.desc()).limit(200).all()
+    return [job_out(j, db, viewer_id=user.id) for j in rows]
 
 
 @router.get("/business/dashboard")
