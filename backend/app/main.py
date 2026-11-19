@@ -31,6 +31,9 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
     if request.url.path.startswith(SECURE_PREFIXES):
         response.headers["Cache-Control"] = "no-store"
+    elif request.url.path.startswith("/static/") or request.url.path == "/":
+        # Los assets van cambiando en cada despliegue: nunca servir una version vieja.
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
     return response
 
 
