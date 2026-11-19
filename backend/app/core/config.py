@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     smtp_password: str = os.getenv("SMTP_PASSWORD", "")
     smtp_from: str = os.getenv("SMTP_FROM", "no-reply@practicape.pe")
     smtp_tls: bool = os.getenv("SMTP_TLS", "1") == "1"
+    # none | smtp | gmail  (gmail usa la API de Gmail, sin SMTP y sin coste)
+    mail_backend: str = os.getenv("MAIL_BACKEND", "none").strip().lower()
+    gmail_token_path: str = os.getenv("GMAIL_TOKEN_PATH", "")
+    gmail_from: str = os.getenv("GMAIL_FROM", "")
 
     cors_origins: str = os.getenv(
         "CORS_ORIGINS",

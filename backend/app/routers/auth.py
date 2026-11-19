@@ -84,7 +84,8 @@ def request_otp(body: RequestOtp, request: Request, db: Session = Depends(get_db
     db.commit()
 
     sent = mailer.send_otp(email, code, user.name)
-    out = {"ok": True, "email": email, "user_id": user.id, "channel": "smtp" if sent else "none"}
+    out = {"ok": True, "email": email, "user_id": user.id,
+           "channel": settings.mail_backend if sent else "none"}
     # El código solo se devuelve si el modo desarrollo está explícitamente activado (CI02).
     if settings.otp_dev_code:
         out["dev_code"] = code
