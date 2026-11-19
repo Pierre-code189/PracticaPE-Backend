@@ -11,7 +11,10 @@ def now():
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    email = Column(String(255), unique=True, index=True)
+    # `email` queda como columna legada (nunca se expone): se guarda un alias no identificable.
+    email = Column(String(255), default="")
+    email_hash = Column(String(64), index=True)
+    email_enc = Column(Text, default="")
     name = Column(String(255), default="")
     role = Column(String(50), default="candidate")  # candidate|business|admin
     phone = Column(String(50), default="")

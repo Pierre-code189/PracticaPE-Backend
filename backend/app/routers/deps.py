@@ -1,11 +1,24 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+
+from .. import models
 from ..core.database import get_db
 from ..core.security import decode_token
-from .. import models
 
 bearer = HTTPBearer(auto_error=False)
+
+PUBLIC_ROLES = ("candidate", "business")
+
+
+def _user_from_payload(db: Session, payload: dict):
+    if not payload:
+        return None
+    try:
+        uid = int(payload.get("sub", ""))
+    except (TypeError, ValueError):
+        return None
+    return db.query(models.User).filter(models.User.id == uid).first()
 
 
 def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
@@ -14,7 +27,7 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer), db: 
     payload = decode_token(creds.credentials)
     if not payload:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token inválido")
-    user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
+    user = _user_from_payload(db, payload)
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Usuario no activo")
     return user
@@ -28,6 +41,13 @@ def require_role(*roles):
     return _check
 
 
+def get_optional_user(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
+    if not creds:
+        return None
+    user = _user_from_payload(db, decode_token(creds.credentials))
+    return user if user and user.is_active else None
+
+
 def notify(db, user_id, type_, title, body, link=""):
     if user_id:
         db.add(models.Notification(user_id=user_id, type=type_, title=title, body=body, link=link))
@@ -36,10 +56,9 @@ def notify(db, user_id, type_, title, body, link=""):
 def job_out(job, db, viewer_id=None, reveal_contact=False):
     company = job.company
     applied = False
-    if viewer_id:
-        applied = db.query(models.Application).filter_by(job_id=job.id, candidate_id=viewer_id).first() is not None
     saved = False
     if viewer_id:
+        applied = db.query(models.Application).filter_by(job_id=job.id, candidate_id=viewer_id).first() is not None
         saved = db.query(models.SavedJob).filter_by(job_id=job.id, candidate_id=viewer_id).first() is not None
     contact = {}
     if reveal_contact and applied and company:
@@ -56,10 +75,3 @@ def job_out(job, db, viewer_id=None, reveal_contact=False):
         "applied": applied, "saved": saved, "contact": contact,
         "applications_count": len(job.applications),
     }
-
-def get_optional_user(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
-    if not creds: return None
-    payload = decode_token(creds.credentials)
-    if not payload: return None
-    user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
-    return user if user and user.is_active else None

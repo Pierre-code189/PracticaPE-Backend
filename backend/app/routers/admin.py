@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from ..core.database import get_db
+from sqlalchemy.orm import Session
+
 from .. import models
-from .deps import get_current_user, require_role, job_out
+from ..core.database import get_db
+from ..core.security import dec_email, mask_email
+from .deps import job_out, require_role
 
 router = APIRouter(tags=["admin"])
 
@@ -27,6 +29,66 @@ def dashboard(db: Session = Depends(get_db), user=Depends(require_role("admin"))
         "charts": {"by_modality": by_modality, "by_district": by_district, "by_role": by_role,
                    "by_status": by_status, "apps_by_day": apps_by_day},
     }
+
+
+@router.get("/admin/users")
+def users(db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+    rows = db.query(models.User).order_by(models.User.id.desc()).limit(200).all()
+    return [{"id": u.id, "name": u.name, "email": dec_email(u.email_enc), "email_masked": mask_email(dec_email(u.email_enc)),
+             "role": u.role, "is_active": u.is_active, "created_at": str(u.created_at),
+             "company": u.company.name if u.company else ""} for u in rows]
+
+
+class UserPatch(BaseModel):
+    role: str = ""
+    is_active: bool | None = None
+
+
+@router.patch("/admin/users/{user_id}")
+def update_user(user_id: int, body: UserPatch, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+    target = db.get(models.User, user_id)
+    if not target:
+        raise HTTPException(404, "Usuario no encontrado")
+    if body.role:
+        if body.role not in ("candidate", "business", "admin"):
+            raise HTTPException(400, "Rol inválido")
+        if target.id == user.id and body.role != "admin":
+            raise HTTPException(400, "No puedes quitarte el rol de administrador")
+        target.role = body.role
+    if body.is_active is not None:
+        if target.id == user.id and not body.is_active:
+            raise HTTPException(400, "No puedes desactivarte a ti mismo")
+        target.is_active = body.is_active
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/admin/companies")
+def companies(db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+    rows = db.query(models.Company).order_by(models.Company.id.desc()).limit(200).all()
+    return [{"id": c.id, "name": c.name, "sector": c.sector, "district": c.district,
+             "is_public": c.is_public, "is_verified": c.is_verified,
+             "jobs": db.query(models.Job).filter_by(company_id=c.id, status="published").count()}
+            for c in rows]
+
+
+class CompanyPatch(BaseModel):
+    is_public: bool | None = None
+    is_verified: bool | None = None
+
+
+@router.patch("/admin/companies/{company_id}")
+def update_company(company_id: int, body: CompanyPatch, db: Session = Depends(get_db),
+                   user=Depends(require_role("admin"))):
+    c = db.get(models.Company, company_id)
+    if not c:
+        raise HTTPException(404, "Empresa no encontrada")
+    if body.is_public is not None:
+        c.is_public = body.is_public
+    if body.is_verified is not None:
+        c.is_verified = body.is_verified
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/admin/queue")
@@ -53,7 +115,8 @@ def review(job_id: int, action: str, db: Session = Depends(get_db), user=Depends
 @router.get("/admin/otps")
 def otps(db: Session = Depends(get_db), user=Depends(require_role("admin"))):
     rows = db.query(models.Otp).order_by(models.Otp.id.desc()).limit(50).all()
-    return [{"id": o.id, "user_id": o.user_id, "email": o.user.email if o.user else "",
+    return [{"id": o.id, "user_id": o.user_id,
+             "email": mask_email(dec_email(o.user.email_enc)) if o.user else "",
              "expires_at": str(o.expires_at), "attempts": o.attempts, "used": o.used,
              "created_at": str(o.created_at)} for o in rows]
 
@@ -65,11 +128,17 @@ def leads(db: Session = Depends(get_db), user=Depends(require_role("admin"))):
              "message": l.message, "type": l.type, "status": l.status, "created_at": str(l.created_at)} for l in rows]
 
 
+class LeadPatch(BaseModel):
+    status: str
+
+
 @router.patch("/admin/leads/{lead_id}")
-def lead_status(lead_id: int, status: str, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+def lead_status(lead_id: int, body: LeadPatch, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
     lead = db.get(models.Lead, lead_id)
     if not lead:
         raise HTTPException(404, "Lead no encontrado")
-    lead.status = status
+    if body.status not in ("new", "contacted", "closed"):
+        raise HTTPException(400, "Estado inválido")
+    lead.status = body.status
     db.commit()
     return {"ok": True}

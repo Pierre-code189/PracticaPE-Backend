@@ -2,16 +2,22 @@
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 from app.core.database import SessionLocal, init_db
+from app.core.security import email_hash, enc_email
 from app import models
 
 init_db()
 db = SessionLocal()
 
 def user(email, name, role):
-    u = db.query(models.User).filter_by(email=email).first()
+    h = email_hash(email)
+    u = db.query(models.User).filter(models.User.email_hash == h).first()
     if not u:
-        u = models.User(email=email, name=name, role=role)
+        u = models.User(email="u0@oculto.local", email_hash=h, email_enc=enc_email(email),
+                        name=name, role=role)
         db.add(u); db.flush()
+        u.email = f"u{u.id}@oculto.local"
+    else:
+        u.name, u.role = name, role
     return u
 
 admin = user("admin@practicape.pe", "Admin", "admin")
