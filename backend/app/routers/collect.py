@@ -17,7 +17,7 @@ class RunIn(BaseModel):
 
 @router.post("/run")
 def run(body: RunIn, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
-    drafts = web_collector.collect_bing(body.query, body.max_results)
+    drafts = web_collector.collect_search(body.query, body.max_results)
     created = 0
     for d in drafts:
         if d.get("source_url") and db.query(models.Job).filter_by(source_url=d["source_url"]).first():
