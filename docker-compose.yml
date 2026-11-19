@@ -1,0 +1,43 @@
+name: practicape
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: practicape:latest
+    container_name: practicape
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      PORT: "8000"
+      PRACTICAPE_DATA_DIR: /app/data
+      PRACTICAPE_UPLOAD_DIR: /app/data/uploads
+      # Desarrollo local: muestra el código OTP en pantalla. Ponlo a 0 en producción.
+      OTP_DEV_CODE: "${OTP_DEV_CODE:-1}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-http://localhost:8000}"
+      SECRET_KEY: "${SECRET_KEY:-}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-no-reply@practicape.pe}"
+      SMTP_TLS: "${SMTP_TLS:-1}"
+      SEED_ON_START: "${SEED_ON_START:-0}"
+    volumes:
+      - practicape_data:/app/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import os,urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/health', timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  practicape_data:

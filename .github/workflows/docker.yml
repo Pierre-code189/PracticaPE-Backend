@@ -1,0 +1,37 @@
+name: docker
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config
+
+      - name: Build image
+        run: docker build -t practicape:ci .
+
+      - name: Smoke test /health and frontend
+        run: |
+          docker rm -f practicape-ci 2>/dev/null || true
+          docker run -d --name practicape-ci -p 18080:8000 \
+            -e PORT=8000 \
+            -e PRACTICAPE_DATA_DIR=/tmp/practicape-data \
+            -e PRACTICAPE_UPLOAD_DIR=/tmp/practicape-data/uploads \
+            -e OTP_DEV_CODE=1 \
+            practicape:ci
+          ok=0
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:18080/health | grep -q '"ok":true'; then ok=1; break; fi
+            sleep 2
+          done
+          if [ "$ok" != "1" ]; then docker logs practicape-ci; exit 1; fi
+          echo "health OK"
+          curl -fsS http://127.0.0.1:18080/ | grep -qi '<!doctype html>' || { docker logs practicape-ci; exit 1; }
+          echo "frontend OK"
+          docker rm -f practicape-ci
