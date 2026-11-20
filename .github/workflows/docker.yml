@@ -1,0 +1,45 @@
+name: docker
+
+on:
+  push:
+    branches: [v2-desde-cero, main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instala dependencias
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -q --upgrade pip
+          .venv/bin/pip install -q -r backend/requirements.txt pytest
+      - name: E2E de la API
+        env:
+          PRACTICAPE_DATA_DIR: /tmp/pp-ci
+          PYTHONPATH: backend
+        run: |
+          mkdir -p /tmp/pp-ci
+          .venv/bin/python backend/scripts/seed.py --publish >/dev/null
+          .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8099 &
+          sleep 6
+          PP_BASE=http://127.0.0.1:8099 PP_SUF=ci .venv/bin/python scripts/e2e_api.py
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: practicape:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
