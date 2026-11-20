@@ -1,0 +1,1 @@
+"""PrácticaPE — backend FastAPI."""
