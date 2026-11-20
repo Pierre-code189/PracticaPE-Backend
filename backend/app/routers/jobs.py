@@ -1,12 +1,21 @@
 """Ofertas: listado público, detalle, postulación, guardado y alta por empresa."""
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
 from ..models import Application, Job, SavedJob, User
 from ..routers.deps import optional_user, require_role
+from ..services.social_importer import UnsafeTarget, parse_social_text, parse_url
 
 router = APIRouter(tags=["jobs"])
+
+
+class SubmitIn(BaseModel):
+    url: str = ""
+    text: str = ""
+    title: str = ""
 
 
 def _public_job(j: Job) -> dict:
@@ -29,6 +38,8 @@ def _public_job(j: Job) -> dict:
         "company_name": (comp.name if comp else "") or "",
         "company_logo": (comp.logo_url if comp else "") or "",
         "company_verified": bool(comp and comp.is_verified),
+        "source": j.source or "manual",
+        "source_url": j.source_url or "",
     }
 
 
@@ -55,6 +66,7 @@ def list_jobs(
     district: str = "",
     modality: str = "",
     category: str = "",
+    source: str = "",
     salary_min: int = 0,
     salary_max: int = 0,
     status: str = "",
@@ -87,6 +99,11 @@ def list_jobs(
         query = query.filter(Job.modality == modality)
     if category:
         query = query.filter(Job.category == category)
+    if source == 'manual':
+        # 'Empresas' agrupa los avisos publicados desde el panel y los sembrados
+        query = query.filter(Job.source.in_(["manual", "seed"]))
+    elif source:
+        query = query.filter(Job.source == source)
 
     total = query.count()
     items = query.order_by(Job.created_at.desc()).offset(offset).limit(limit).all()
@@ -102,6 +119,68 @@ def list_jobs(
         total = len(items)
 
     return {"total": total, "items": [_public_job(j) for j in items]}
+
+
+@router.get("/jobs/sources")
+def job_sources(user: User = Depends(optional_user), db: Session = Depends(get_db)):
+    """Recuento por fuente del feed (web | user | manual)."""
+    q = db.query(Job.status, Job.source, func.count(Job.id))
+    if not user or user.role == "candidate":
+        q = q.filter(Job.status == "published")
+    rows = q.group_by(Job.status, Job.source).all()
+    out = {}
+    for st, src, n in rows:
+        key = src or "manual"
+        slot = out.setdefault(key, {"total": 0, "published": 0, "draft": 0, "pending": 0})
+        slot["total"] += n
+        if st in slot:
+            slot[st] += n
+    return {"sources": out}
+
+
+@router.post("/jobs/submit")
+def submit_job(
+    body: "SubmitIn",
+    user: User = Depends(require_role("candidate", "business", "admin")),
+    db: Session = Depends(get_db),
+):
+    """Envío de una oferta por enlace o texto ("Publica tu chamba").
+
+    Nunca se publica sola: queda en revisión (pending) para moderación.
+    """
+    url = (body.url or "").strip()
+    text = (body.text or "").strip()
+    if not url and not text:
+        raise HTTPException(status_code=400, detail="Envía el enlace o el texto de la oferta")
+    try:
+        draft = parse_url(url) if url else parse_social_text(text or body.title, "")
+    except UnsafeTarget as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer esa oferta")
+    if body.title and len(body.title.strip()) > 4:
+        draft["title"] = body.title.strip()[:180]
+    draft["source"] = "user"
+    draft["source_url"] = url[:500]
+    draft["status"] = "pending"
+    job = Job(
+        company_id=None,
+        title=draft.get("title", "")[:255] or "Oferta enviada",
+        description=draft.get("description", "")[:4000],
+        modality=draft.get("modality", "presencial"),
+        district=draft.get("district", "Piura"),
+        city=draft.get("city", "Piura"),
+        lat=draft.get("lat"), lng=draft.get("lng"),
+        salary=draft.get("salary", "")[:100],
+        status="pending",
+        source="user",
+        source_url=draft["source_url"],
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return {"ok": True, "id": job.id, "status": "pending",
+            "message": "Oferta enviada a revisión. La publicaremos tras verificarla."}
 
 
 @router.get("/jobs/districts")

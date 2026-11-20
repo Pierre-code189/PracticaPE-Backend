@@ -78,7 +78,8 @@ def main():
     ok("ofertas sin borradores", all(j["status"] == "published" for j in items))
     ok("ofertas con empresa", all(j.get("company_name") for j in items))
     ok("ofertas con geo", all("lat" in j and "lng" in j for j in items))
-    ok("sin campos internos", not any("source_url" in j or "company_id" in j for j in items))
+    ok("sin campos internos", not any("company_id" in j for j in items))
+    ok("fuente visible", all("source" in j for j in items))
 
     st, f = call("GET", "/jobs?q=administrativo&district=Piura")
     ok("filtro palabra+distrito", st == 200 and isinstance(f.get("items"), list))
@@ -153,6 +154,24 @@ def main():
     ok("mis postulaciones", st == 200 and len(mine.get("items", [])) >= 1)
     st, anon = call("POST", "/jobs/2/apply", {})
     ok("postular sin sesion", st in (401, 403))
+
+    print("== 3b. Feed agregado y envio de chamba")
+    st, srcs = call("GET", "/jobs/sources")
+    ok("fuentes del feed", st == 200 and isinstance(srcs.get("sources"), dict))
+    ok("fuente de empresas", (srcs.get("sources", {}).get("seed", {}).get("published", 0) >= 1)
+       or (srcs.get("sources", {}).get("manual", {}).get("published", 0) >= 1))
+    st, filtrado = call("GET", "/jobs?source=manual&limit=50")
+    ok("filtro por fuente", st == 200 and filtrado.get("total", 0) >= 1)
+    st, anon = call("POST", "/jobs/submit", {"url": "https://pe.computrabajo.com/trabajo-de-practicante-en-piura"})
+    ok("enviar chamba sin sesion", st in (401, 403))
+    st, envio = call("POST", "/jobs/submit",
+                     {"url": "https://pe.computrabajo.com/trabajo-de-practicante-en-piura",
+                      "title": "Practicante E2E"}, token=CAND)
+    ok("enviar chamba con sesion", st == 200 and envio.get("status") == "pending")
+    st, pend = call("GET", "/jobs/%s" % envio.get("id"))
+    ok("la chamba enviada no se publica sola", st == 404)
+    st, vacia = call("POST", "/jobs/submit", {}, token=CAND)
+    ok("enviar sin enlace", st == 400)
 
     print("== 4. Empresa")
     st, bp = call("GET", "/business/profile", token=BIZ)

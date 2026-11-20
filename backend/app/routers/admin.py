@@ -35,6 +35,8 @@ def queue(user: User = Depends(require_role("admin")), db: Session = Depends(get
             "category": j.category, "modality": j.modality, "district": j.district,
             "salary": j.salary, "positions": j.positions, "status": j.status,
             "company_name": (j.company.name if j.company else "") or "",
+            "source": j.source or "manual",
+            "source_url": j.source_url or "",
             "created_at": j.created_at.isoformat() if j.created_at else None,
         }
         for j in rows

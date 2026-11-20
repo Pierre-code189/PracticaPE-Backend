@@ -39,6 +39,7 @@ PAGES = {
     "terminos-servicio": ("terminos", "Términos y condiciones · PrácticaPE"),
     "libro-de-reclamaciones": ("libro-de-reclamaciones", "Libro de reclamaciones · PrácticaPE"),
     "como-funciona": ("guias", "Guía de prácticas · PrácticaPE"),
+    "enviar-oferta": ("enviar", "Publica tu chamba · PrácticaPE"),
 }
 
 NAV = {
