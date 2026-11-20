@@ -1,0 +1,17 @@
+# PrácticaPE v2 — dependencias del backend
+fastapi==0.165.0
+uvicorn==0.54.0
+pydantic==2.14.4
+pydantic-settings==2.16.3
+email-validator==2.4.0
+sqlalchemy==2.1.9
+bcrypt==5.0.0
+cryptography==50.0.2
+python-multipart==0.0.34
+# OTP por API de Gmail (opcional: solo con MAIL_BACKEND=gmail)
+google-api-python-client==2.202.0
+google-auth==2.62.2
+google-auth-httplib2==0.4.4
+google-auth-oauthlib==1.5.0
+# pruebas
+pytest==9.2.0
