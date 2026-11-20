@@ -23,6 +23,7 @@ jobs:
         env:
           PRACTICAPE_DATA_DIR: /tmp/pp-ci
           PYTHONPATH: backend
+          OTP_DEV_CODE: "1"
         run: |
           mkdir -p /tmp/pp-ci
           .venv/bin/python backend/scripts/seed.py --publish >/dev/null
