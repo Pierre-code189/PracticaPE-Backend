@@ -55,13 +55,14 @@ def _send_gmail(to: str, code: str) -> bool:
     try:
         creds = Credentials.from_authorized_user_file(path, scopes)
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
-        raw = base64.urlsafe_b64encode(
-            MIMEText(render_body(code, settings.otp_expire_minutes), "plain", "utf-8")
-            .as_string()
-            .encode("utf-8")
-        ).decode("ascii")
-        msg = {"raw": raw}
-        service.users().messages().send(userId="me", body=msg).execute()
+        # el MIME necesita las cabeceras To/From/Subject o Gmail responde
+        # "Recipient address required"
+        msg = MIMEText(render_body(code, settings.otp_expire_minutes), "plain", "utf-8")
+        msg["Subject"] = SUBJECT.format(code=code)
+        msg["From"] = settings.gmail_from or "me"
+        msg["To"] = to
+        raw = base64.urlsafe_b64encode(msg.as_string().encode("utf-8")).decode("ascii")
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
     except Exception as e:  # noqa: BLE001
         log.warning("gmail fallo: %s", e)

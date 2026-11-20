@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .core.config import BASE_DIR, settings
@@ -85,7 +85,7 @@ def health():
 
 @app.get("/")
 def index():
-    return {"app": settings.app_name, "docs": "/docs"}
+    return FileResponse(FRONTEND + "/index.html")
 
 
 try:
