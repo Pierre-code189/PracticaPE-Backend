@@ -186,7 +186,7 @@ def main():
         print("  AVISO create_admin rc=%s out=%s err=%s" % (_r.returncode, (_r.stdout or "").strip()[:120], (_r.stderr or "").strip()[:160]))
     toka = login(ADMIN_EMAIL, "candidate")
     ok("token admin", bool(toka))
-    _stm, _me = call("GET", "/me", token=toka)
+    _stm, _me = call("GET", "/auth/me", token=toka)
     ok("rol del token admin", _stm == 200 and _me.get("role") == "admin", "status=%s rol=%s" % (_stm, _me.get("role")))
     st, ad = call("GET", "/admin/dashboard", token=toka)
     ok("dashboard admin", st == 200 and ad.get("users", 0) > 0, "users=%s" % ad.get("users"))
