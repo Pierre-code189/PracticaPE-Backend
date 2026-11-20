@@ -179,9 +179,11 @@ def main():
     # el admin no se autoregistra: se promociona con el script de semilla
     import subprocess
     env = dict(os.environ, PRACTICAPE_DATA_DIR=settings_data_dir(), SECRET_KEY=os.getenv("SECRET_KEY", "testsecret"))
-    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", "scripts", "create_admin.py"), ADMIN_EMAIL],
-                   cwd=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"),
-                   env=env, capture_output=True, text=True)
+    _raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _r = subprocess.run([sys.executable, os.path.join(_raiz, "backend", "scripts", "create_admin.py"), ADMIN_EMAIL],
+                        cwd=os.path.join(_raiz, "backend"), env=env, capture_output=True, text=True)
+    if _r.returncode != 0 or "admin listo" not in (_r.stdout or ""):
+        print("  AVISO create_admin rc=%s out=%s err=%s" % (_r.returncode, (_r.stdout or "").strip()[:120], (_r.stderr or "").strip()[:160]))
     toka = login(ADMIN_EMAIL, "candidate")
     ok("token admin", bool(toka))
     st, ad = call("GET", "/admin/dashboard", token=toka)
