@@ -24,10 +24,11 @@ jobs:
           PRACTICAPE_DATA_DIR: /tmp/pp-ci
           PYTHONPATH: backend
           OTP_DEV_CODE: "1"
+          SECRET_KEY: "ci-secret-test"
         run: |
           mkdir -p /tmp/pp-ci
           .venv/bin/python backend/scripts/seed.py --publish >/dev/null
-          .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8099 &
+          SECRET_KEY=ci-secret-test .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8099 &
           sleep 6
           PP_BASE=http://127.0.0.1:8099 PP_SUF=ci .venv/bin/python scripts/e2e_api.py
 

@@ -178,7 +178,17 @@ def main():
     print("== 5. Admin")
     # el admin no se autoregistra: se promociona con el script de semilla
     import subprocess
-    env = dict(os.environ, PRACTICAPE_DATA_DIR=settings_data_dir(), SECRET_KEY=os.getenv("SECRET_KEY", "testsecret"))
+    # la clave debe ser la misma que la del servidor: si no hay SECRET_KEY en el
+    # entorno, se toma del data/.secret que usa el backend
+    _dd = settings_data_dir()
+    _sk = os.getenv("SECRET_KEY") or ""
+    if not _sk:
+        try:
+            with open(os.path.join(_dd, ".secret"), "r", encoding="utf-8") as _fh:
+                _sk = _fh.read().strip()
+        except OSError:
+            _sk = ""
+    env = dict(os.environ, PRACTICAPE_DATA_DIR=_dd, SECRET_KEY=_sk)
     _raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     _r = subprocess.run([sys.executable, os.path.join(_raiz, "backend", "scripts", "create_admin.py"), ADMIN_EMAIL],
                         cwd=os.path.join(_raiz, "backend"), env=env, capture_output=True, text=True)
