@@ -31,6 +31,14 @@ PAGES = {
     "mapa-ofertas": ("mapa", "Mapa de ofertas · PrácticaPE"),
     "mis-postulaciones": ("postulaciones", "Mis postulaciones · PrácticaPE"),
     "panel-administracion": ("panel-admin", "Panel de administración · PrácticaPE"),
+    "notificaciones": ("notificaciones", "Notificaciones · PrácticaPE"),
+    "perfil-publico": ("perfil-publico", "Perfil de candidata · PrácticaPE"),
+    "publicar-oferta": ("publicar-oferta", "Publicar oferta · PrácticaPE"),
+    "contacto": ("contacto", "Contacto y soporte · PrácticaPE"),
+    "politica-privacidad": ("privacidad", "Política de privacidad · PrácticaPE"),
+    "terminos-servicio": ("terminos", "Términos y condiciones · PrácticaPE"),
+    "libro-de-reclamaciones": ("libro-de-reclamaciones", "Libro de reclamaciones · PrácticaPE"),
+    "como-funciona": ("guias", "Guía de prácticas · PrácticaPE"),
 }
 
 NAV = {
