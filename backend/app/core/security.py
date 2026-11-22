@@ -3,7 +3,7 @@ import base64
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
 import bcrypt
@@ -75,7 +75,7 @@ def email_alias(user_id: int) -> str:
 
 
 def create_access_token(user_id: int, role: str) -> str:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     payload = {
         "sub": str(user_id),
         "role": role,

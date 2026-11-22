@@ -1,5 +1,5 @@
 """Autenticación con código de un solo uso (OTP)."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
@@ -77,7 +77,7 @@ def request_otp(body: OtpRequest, request: Request, db: Session = Depends(get_db
     db.add(Otp(
         user_id=user.id,
         code_hash=hash_otp(code),
-        expires_at=datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.otp_expire_minutes),
     ))
     db.commit()
 
@@ -109,7 +109,7 @@ def verify(body: OtpVerify, db: Session = Depends(get_db)):
     )
     if not otp:
         raise HTTPException(status_code=400, detail="Solicita un código primero")
-    if otp.expires_at < datetime.utcnow():
+    if otp.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="El código venció. Solicita uno nuevo")
 
     # AU06: bloqueo en el intento número o después del máximo

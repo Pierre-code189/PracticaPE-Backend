@@ -1,5 +1,5 @@
 """Modelos de datos. Sin emails en claro: `email` es un alias no identificable."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
@@ -10,7 +10,7 @@ from .core.database import Base
 
 
 def now():
-    return datetime.utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class User(Base):

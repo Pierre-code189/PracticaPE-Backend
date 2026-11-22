@@ -86,7 +86,7 @@ def dashboard(user: User = Depends(require_role("business", "admin")), db: Sessi
     published = [j for j in jobs if j.status == "published"]
     drafts = [j for j in jobs if j.status == "draft"]
     apps = db.query(Application).join(Job).filter(Job.company_id == c.id).count()
-    cands = db.query(Application).join(Job).filter(Job.company_id == c.id).distinct(Application.candidate_id).count()
+    cands = db.query(Application.candidate_id).join(Job).filter(Job.company_id == c.id).distinct().count()
     views = sum(j.views for j in jobs)
     return {
         "published": len(published),
