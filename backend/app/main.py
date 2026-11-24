@@ -9,7 +9,7 @@ Reglas transversales:
 """
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -88,7 +88,10 @@ def health():
 
 @app.get("/")
 def index():
-    return FileResponse(FRONTEND / "index.html")
+    f = FRONTEND / "index.html"
+    if not f.is_file():
+        raise HTTPException(status_code=404, detail="Frontend no construido (npm run build)")
+    return FileResponse(f)
 
 
 if (FRONTEND / "static").is_dir():
@@ -107,4 +110,7 @@ if IS_SPA:
                     return FileResponse(candidato)
             except OSError:
                 pass
-        return FileResponse(FRONTEND / "index.html")
+        f = FRONTEND / "index.html"
+        if not f.is_file():
+            raise HTTPException(status_code=404, detail="Frontend no construido (npm run build)")
+        return FileResponse(f)

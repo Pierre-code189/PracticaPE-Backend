@@ -12,7 +12,17 @@ RUN python -m venv /opt/venv \
  && /opt/venv/bin/pip install --upgrade pip \
  && /opt/venv/bin/pip install -r requirements.txt
 
-# ---------- Stage 2: runner (sin root, solo runtime + venv) ----------
+# ---------- Stage 2: web (compila el frontend React + Tailwind) ----------
+# Se replica la estructura del repo porque vite.config.js escribe en ../frontend-dist.
+FROM node:22-alpine AS web
+
+WORKDIR /build
+COPY frontend-react/package.json frontend-react/package-lock.json ./frontend-react/
+RUN cd frontend-react && npm ci --no-audit --no-fund
+COPY frontend-react/ ./frontend-react/
+RUN cd frontend-react && npm run build
+
+# ---------- Stage 3: runner (sin root, solo runtime + venv + build) ----------
 FROM python:3.12-slim AS runner
 
 ENV PATH="/opt/venv/bin:$PATH" \
@@ -28,7 +38,7 @@ RUN groupadd --system app \
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY backend ./backend
-COPY frontend ./frontend
+COPY --from=web /build/frontend-dist ./frontend-dist
 COPY scripts ./scripts
 
 RUN mkdir -p /app/data/uploads \

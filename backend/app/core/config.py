@@ -59,10 +59,8 @@ class Settings(BaseSettings):
         "http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173",
     )
     public_base_url: str = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
-    # Directorio del frontend servido por la API. Por defecto el vanilla
-    # (frontend/); con PRACTICAPE_FRONTEND_DIR=.../frontend-dist se sirve el
-    # build de React y el backend actúa de SPA fallback.
-    frontend_dir: str = os.getenv("PRACTICAPE_FRONTEND_DIR", os.path.join(BASE_DIR, "..", "frontend"))
+    # Directorio del frontend servido por la API: el build de React.
+    frontend_dir: str = os.getenv("PRACTICAPE_FRONTEND_DIR", os.path.join(BASE_DIR, "..", "frontend-dist"))
 
     upload_max_mb: int = 5
     allowed_upload_types: str = "image/jpeg,image/png,image/webp"
