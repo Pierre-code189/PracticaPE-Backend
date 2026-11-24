@@ -2,25 +2,25 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+.venv/
 backend/.venv/
-backend/data/
 data/
-
-# Node
-frontend-react/node_modules/
-frontend-dist/
-*.local
+backend/data/
 
 # Env / secretos
 .env
 .env.local
+*.secret
 
 # SQLite
 *.db
 *.db-shm
 *.db-wal
-*.secret
 
 # Uploads y logs
 data/uploads/
 *.log
+*.local
+
+# Frontend (repo aparte: PracticaPE-Frontend)
+frontend-dist/

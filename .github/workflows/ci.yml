@@ -1,8 +1,8 @@
-name: docker
+name: CI (backend)
 
 on:
   push:
-    branches: [v2-desde-cero, main]
+    branches: [main]
     tags: ["v*"]
   pull_request:
 
@@ -33,6 +33,8 @@ jobs:
           PP_BASE=http://127.0.0.1:8099 PP_SUF=ci .venv/bin/python scripts/e2e_api.py
 
   build:
+    # La imagen solo contiene la API. El frontend se monta aparte en /app/frontend-dist
+    # (repo PracticaPE-Frontend).
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -42,6 +44,6 @@ jobs:
         with:
           context: .
           push: false
-          tags: practicape:latest
+          tags: practicape-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
