@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from pathlib import Path
+
 from .core.config import BASE_DIR, settings
 from .core.database import init_db
 from .routers import admin, auth, business, companies, jobs, me, profile, public
@@ -75,7 +77,8 @@ app.include_router(admin.router)
 app.include_router(public.router)
 
 
-FRONTEND = BASE_DIR + "/../frontend"
+FRONTEND = Path(settings.frontend_dir).resolve()
+IS_SPA = not (FRONTEND / "static").is_dir()
 
 
 @app.get("/health")
@@ -85,10 +88,23 @@ def health():
 
 @app.get("/")
 def index():
-    return FileResponse(FRONTEND + "/index.html")
+    return FileResponse(FRONTEND / "index.html")
 
 
-try:
-    app.mount("/static", StaticFiles(directory=FRONTEND + "/static"), name="static")
-except RuntimeError:  # pragma: no cover
-    pass
+if (FRONTEND / "static").is_dir():
+    app.mount("/static", StaticFiles(directory=str(FRONTEND / "static")), name="static")
+
+# Build de React: los assets reales se sirven del disco y cualquier otra ruta
+# (p. ej. /ofertas) devuelve index.html para que el router del cliente decida.
+# Declarado al final, después de los routers de API, para no robarles peticiones.
+if IS_SPA:
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        if full_path and full_path != "assets":
+            candidato = FRONTEND / full_path
+            try:
+                if candidato.is_file() and FRONTEND in candidato.resolve().parents:
+                    return FileResponse(candidato)
+            except OSError:
+                pass
+        return FileResponse(FRONTEND / "index.html")
