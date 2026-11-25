@@ -8,6 +8,7 @@ Las dos devuelven borradores (nunca se publican solos) y ante cualquier fallo de
 red devuelven []: no se inventan ofertas.
 """
 import html as html_mod
+import json
 import random
 import re
 import time
@@ -135,9 +136,12 @@ def collect_computrabajo(query: str = "practicante", max_results: int = 10) -> l
 
 
 def collect_search(query: str = "practicante Piura", max_results: int = 10) -> list[dict]:
-    """Recolecta de ambas fuentes, deduplicando por URL."""
+    """Recolecta de todas las fuentes, deduplicando por URL."""
     merged: dict[str, dict] = {}
-    for r in _ddg_results(query, max_results * 2) + _computrabajo_results(query, max_results * 2):
+    for r in (_ddg_results(query, max_results * 2)
+              + _computrabajo_results(query, max_results * 2)
+              + _practicas_pe_results(max_results)
+              + _gobpe_results(query, max_results)):
         merged.setdefault(r["url"], r)
     return _to_drafts(list(merged.values()), max_results)
 
@@ -145,3 +149,92 @@ def collect_search(query: str = "practicante Piura", max_results: int = 10) -> l
 def collect_bing(query: str = "practicante Piura", max_results: int = 10) -> list[dict]:
     """Alias histórico: Bing dejó de devolver resultados orgánicos; se usa DDG."""
     return collect_ddg(query, max_results)
+
+
+# ---------- Fuentes adicionales (verificadas en el VPS, sin API key) ----------
+PRACTICAS_PE_URL = "https://www.practicas.pe/pre-profesional-region-piura-20.html"
+GOBPE_URL = "https://www.gob.pe/busquedas?term="
+
+
+def _practicas_pe_results(max_results: int = 10) -> list[dict]:
+    """Bolsa de prácticas de practicas.pe filtrada por la región Piura."""
+    try:
+        page = _fetch(PRACTICAS_PE_URL, "practicas_pe")
+    except Exception:
+        return []
+    out = []
+    for m in re.finditer(
+            r'<a[^>]+href="(https://www\.practicas\.pe/oferta-convocatoria[^"]+\.html)"[^>]*>(.*?)</a>',
+            page, flags=re.S):
+        url, title = m.group(1), _clean(m.group(2))
+        if not title:
+            continue
+        out.append({"url": url, "title": title, "snippet": title[:800]})
+        if len(out) >= max_results:
+            break
+    return out
+
+
+def _json_array_after(text: str, marker: str) -> list:
+    """Lee el array JSON que sigue a un marcador, respetando comillas y escapes."""
+    i = text.find(marker)
+    if i < 0:
+        return []
+    i += len(marker)
+    depth, in_str, esc = 0, False, False
+    for j in range(i, len(text)):
+        c = text[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "[":
+                depth += 1
+            elif c == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        value = json.loads(text[i:j + 1])
+                        return value if isinstance(value, list) else []
+                    except (ValueError, TypeError):
+                        return []
+    return []
+
+
+def _gobpe_results(query: str = "practicante piura", max_results: int = 10) -> list[dict]:
+    """Convocatorias del Estado peruano. Solo del año en curso: las demás caducaron."""
+    try:
+        page = _fetch(GOBPE_URL + urllib.parse.quote(query or "practicante piura"), "gobpe")
+    except Exception:
+        return []
+    year = str(time.localtime().tm_year)
+    out = []
+    for item in _json_array_after(page, '"results":['):
+        title = _clean(item.get("name_with_parent", ""))
+        pub = item.get("publication") or ""
+        if year not in pub:
+            continue
+        hm = re.search(r'href="([^"]+)"', item.get("url") or "")
+        if not hm:
+            continue
+        href = hm.group(1).replace("\\/", "/")
+        if href.startswith("/"):
+            href = "https://www.gob.pe" + href
+        out.append({"url": href, "title": title, "snippet": title[:800], "publication": pub})
+        if len(out) >= max_results:
+            break
+    return out
+
+
+def collect_practicas_pe(query: str = "", max_results: int = 10) -> list[dict]:
+    return _to_drafts(_practicas_pe_results(max_results), max_results)
+
+
+def collect_gobpe(query: str = "practicante piura", max_results: int = 10) -> list[dict]:
+    return _to_drafts(_gobpe_results(query, max_results), max_results)

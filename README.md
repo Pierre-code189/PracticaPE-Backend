@@ -60,6 +60,18 @@ responde **404 “Frontend no construido (npm run build)”** y la API sigue fun
 python scripts/run_collector.py --limit 12     # entra en la cola de moderación
 ```
 
+Fuentes (sin API key, todas verificadas desde el VPS):
+
+| Fuente | Cómo entra |Estado|
+|---|---|---|
+| Computrabajo Perú | listado directo por aviso | activa |
+| **practicas.pe** | listado directo de la región Piura | activa |
+| DuckDuckGo HTML | metabuscador: descubre Indeed, LinkedIn y otros | activa |
+| **gob.pe** | convocatorias del Estado en el buscador | activa solo para el año en curso |
+
+Ante un fallo de red, una fuente devuelve `[]` y las demás siguen. Las fuentes se intercalan para
+que un portal prolífico no desplace a los otros, y todo se deduplica por `source_url`.
+
 Las ofertas entran como `pending`; se aprueban por la API
 (`PATCH /admin/queue/{id}?action=approve`). Cada una conserva `source_url`, y su procedencia se
 muestra en la web.

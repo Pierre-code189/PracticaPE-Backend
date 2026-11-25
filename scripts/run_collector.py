@@ -3,9 +3,9 @@
 Uso:
     python scripts/run_collector.py [--limit N] [--query "practicante"]
 
-Fuentes: Computrabajo Perú (ofertas individuales) y DuckDuckGo HTML (cobertura).
-Deduplica por URL contra la base. Todo queda como `pending` para que administración
-lo apruebe o lo rechace desde la cola.
+Fuentes: Computrabajo Perú, practicas.pe (región Piura), DuckDuckGo HTML
+(metabuscador) y convocatorias del Estado (gob.pe). Deduplica por URL y guarda
+`source='web'`, `status='pending'`: la moderación la hace una persona desde la cola.
 """
 import os
 import sys
@@ -27,14 +27,30 @@ QUERIES = os.getenv("COLLECTOR_QUERIES", "").split("|") if os.getenv("COLLECTOR_
 
 def collect(query: str, limit: int) -> list[dict]:
     seen, merged = set(), []
-    for d in web_collector.collect_computrabajo(query, limit * 2) + web_collector.collect_ddg(query, limit * 2):
-        url = d.get("source_url") or ""
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        merged.append(d)
-        if len(merged) >= limit:
-            break
+    # Las fuentes directas van primero: un aviso suyo gana sobre la copia que
+    # pueda devolver el metabuscador.
+    lotes = [
+        web_collector.collect_computrabajo(query, limit * 2),
+        web_collector.collect_practicas_pe(query, limit * 2),
+        web_collector.collect_ddg(query, limit * 2),
+        web_collector.collect_gobpe(query, limit * 2),
+    ]
+    # Intercalado (round-robin): con un límite bajo, un portal muy prolífico no
+    # debe dejar fuera a los demás.
+    for i in range(max((len(lote) for lote in lotes), default=0)):
+        for lote in lotes:
+            if i >= len(lote):
+                continue
+            d = lote[i]
+            # Un fragmento #no cambia el aviso pero sí rompe la dedupe.
+            url = (d.get("source_url") or "").split("#")[0].strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            d["source_url"] = url
+            merged.append(d)
+            if len(merged) >= limit:
+                return merged
     return merged
 
 
