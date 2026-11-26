@@ -7,11 +7,14 @@ Fuentes: Computrabajo Perú, practicas.pe (región Piura), DuckDuckGo HTML
 (metabuscador) y convocatorias del Estado (gob.pe). Deduplica por URL y guarda
 `source='web'`, `status='pending'`: la moderación la hace una persona desde la cola.
 """
+import fcntl
 import os
 import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
+
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import SessionLocal, init_db  # noqa: E402
 from app.models import Job  # noqa: E402
@@ -42,8 +45,8 @@ def collect(query: str, limit: int) -> list[dict]:
             if i >= len(lote):
                 continue
             d = lote[i]
-            # Un fragmento #no cambia el aviso pero sí rompe la dedupe.
-            url = (d.get("source_url") or "").split("#")[0].strip()
+            # clave canónica: sin fragmento, sin tracking, sin www, sin barra final
+            url = web_collector.canonical_url(d.get("source_url") or "")
             if not url or url in seen:
                 continue
             seen.add(url)
@@ -63,6 +66,20 @@ def main() -> int:
     limit = ns.limit
     queries = [ns.query] if ns.query else [q for q in QUERIES if q.strip()]
 
+    # Solo una corrida a la vez: SQLite se bloquea si dos procesos escriben.
+    # El índice único es la red de datos; este lock evita el error de base.
+    data_dir = os.getenv("PRACTICAPE_DATA_DIR", "data")
+    os.makedirs(data_dir, exist_ok=True)
+    with open(os.path.join(data_dir, "collector.lock"), "a+") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("Collector: otro recolector ya está corriendo; se omite esta corrida")
+            return 0
+        return _run(queries, limit)
+
+
+def _run(queries, limit: int) -> int:
     init_db()
     db = SessionLocal()
     created = total = 0
@@ -71,22 +88,33 @@ def main() -> int:
             drafts = collect(q, limit)
             total += len(drafts)
             for d in drafts:
-                url = (d.get("source_url") or "")[:500]
-                if url and db.query(Job).filter(Job.source_url == url).first():
+                url = web_collector.canonical_url(d.get("source_url") or "")[:500]
+                if not url or db.query(Job).filter(Job.source_url == url).first():
                     continue
-                db.add(Job(
-                    company_id=None,
-                    title=(d.get("title") or "Oferta encontrada")[:255],
-                    description=(d.get("description") or "")[:4000],
-                    modality=d.get("modality", "presencial"),
-                    district=d.get("district", "Piura"),
-                    city=d.get("city", "Piura"),
-                    lat=d.get("lat"), lng=d.get("lng"),
-                    salary=(d.get("salary") or "")[:100],
-                    status="pending",
-                    source="web",
-                    source_url=url,
-                ))
+                titulo = (d.get("title") or "").strip().lower()
+                if titulo and db.query(Job).filter(Job.title.ilike(titulo)).first():
+                    # No bloquea: avisos distintos pueden compartir título.
+                    print("  aviso: título ya visto con otra URL → %s" % titulo[:60])
+                try:
+                    # SAVEPOINT: si otro recolector insertó la misma URL entre la
+                    # consulta y el add, el índice único lo rechaza sin perder
+                    # el resto de la tanda.
+                    with db.begin_nested():
+                        db.add(Job(
+                            company_id=None,
+                            title=(d.get("title") or "Oferta encontrada")[:255],
+                            description=(d.get("description") or "")[:4000],
+                            modality=d.get("modality", "presencial"),
+                            district=d.get("district", "Piura"),
+                            city=d.get("city", "Piura"),
+                            lat=d.get("lat"), lng=d.get("lng"),
+                            salary=(d.get("salary") or "")[:100],
+                            status="pending",
+                            source="web",
+                            source_url=url,
+                        ))
+                except IntegrityError:
+                    continue
                 created += 1
             db.commit()
             print("  %s: %d halladas" % (q, len(drafts)))

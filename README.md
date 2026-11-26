@@ -70,7 +70,9 @@ Fuentes (sin API key, todas verificadas desde el VPS):
 | **gob.pe** | convocatorias del Estado en el buscador | activa solo para el año en curso |
 
 Ante un fallo de red, una fuente devuelve `[]` y las demás siguen. Las fuentes se intercalan para
-que un portal prolífico no desplace a los otros, y todo se deduplica por `source_url`.
+que un portal prolífico no desplace a los otros, y todo se deduplica por `source_url` **canónica**
+(sin fragmento, sin parámetros de tracking, sin `www.`). La BD tiene un índice único parcial como
+red de seguridad y un `flock` evita dos recolectores simultáneos.
 
 Las ofertas entran como `pending`; se aprueban por la API
 (`PATCH /admin/queue/{id}?action=approve`). Cada una conserva `source_url`, y su procedencia se

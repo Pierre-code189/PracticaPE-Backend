@@ -8,7 +8,10 @@ from .config import settings
 
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {},
+    connect_args=(
+        {"check_same_thread": False, "timeout": 30}
+        if settings.database_url.startswith("sqlite") else {}
+    ),
     future=True,
 )
 
@@ -39,6 +42,24 @@ def init_db():
 
     Base.metadata.create_all(bind=engine)
     _migrate_users_email()
+    _unique_source_url()
+
+
+def _unique_source_url():
+    """Índice único de procedencia: red de seguridad si dos recolectores corren a la vez.
+
+    No borra ni modifica filas. Si una BD heredada ya trae duplicados, deja el
+    índice sin crear y avisa: arreglar ese dato es decisión humana.
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return
+    ddl = ("CREATE UNIQUE INDEX IF NOT EXISTS uq_jobs_source_url ON jobs(source_url) "
+           "WHERE source_url IS NOT NULL AND source_url != ''")
+    with engine.begin() as conn:
+        try:
+            conn.exec_driver_sql(ddl)
+        except Exception as exc:  # duplicados heredados, tabla aún no creada, etc.
+            print("aviso: no se pudo crear uq_jobs_source_url: %s" % exc)
 
 
 def _migrate_users_email():

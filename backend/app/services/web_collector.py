@@ -15,6 +15,41 @@ import time
 import urllib.parse
 import urllib.request
 
+# ---------- Normalización de URL (clave de deduplicación) ----------
+_TRACKING = {
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "fbclid", "gclid", "gbraid", "wbraid", "mc_cid", "mc_eid", "ref", "ref_src",
+}
+
+
+def canonical_url(url: str | None) -> str:
+    """Devuelve una URL comparable: sin fragmento, sin tracking y sin www.
+
+    Se guarda esta forma en `source_url` para que dos portales que apuntan al
+    mismo aviso con parámetros de campaña distintos no generen dos filas.
+    """
+    s = (url or "").strip()
+    if not s:
+        return ""
+    s = s.split("#", 1)[0]
+    try:
+        p = urllib.parse.urlsplit(s)
+        host = p.netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        query = [
+            (k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)
+            if k.lower() not in _TRACKING
+        ]
+        path = p.path.rstrip("/") or "/"
+        return urllib.parse.urlunsplit((
+            p.scheme.lower(), host, path,
+            urllib.parse.urlencode(query), "",
+        ))
+    except Exception:
+        return s
+
+
 PIURA_KEYWORDS = ["piura", "castilla", "sullana", "talara", "pa\u00edta", "chulucanas",
                   "catacaos", "veintisseis", "tambogrande", "salitral", "morropon",
                   "la uni\u00f3n", "miguel checa", "bayovar", "la huaca"]
